@@ -1,4 +1,3 @@
-import { connection } from "next/server";
 import { Dashboard } from "@/components/dashboard";
 import { Shell } from "@/components/shell";
 import { DataError } from "@/components/states";
@@ -11,7 +10,6 @@ export default async function Page({
 }: {
   searchParams: Promise<{ scope?: string | string[]; xp?: string | string[] }>;
 }) {
-  await connection();
   const params = await searchParams;
   const loaded = loadBook();
   if (!loaded.ok) {

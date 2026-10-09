@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { connection } from "next/server";
 import { Badge } from "@/components/ui/badge";
 import { Shell } from "@/components/shell";
-import { UnavailableBlock } from "@/components/states";
+import { DataError, UnavailableBlock } from "@/components/states";
 import { loadBook } from "@/lib/book";
 import { CURRENCY_LABEL, formatMoney } from "@/lib/money";
 import { getOpportunityDetail } from "@/lib/query";
@@ -13,12 +11,27 @@ export default async function OpportunityPage({
 }: {
   params: Promise<{ opportunityId: string }>;
 }) {
-  await connection();
   const { opportunityId } = await params;
   const loaded = loadBook();
-  if (!loaded.ok) notFound();
+  if (!loaded.ok) {
+    return (
+      <Shell>
+        <DataError />
+      </Shell>
+    );
+  }
   const opportunity = getOpportunityDetail(loaded.book, decodeURIComponent(opportunityId));
-  if (!opportunity) notFound();
+  if (!opportunity) {
+    return (
+      <Shell>
+        <h1 className="text-xl font-semibold">That record is not in the dataset</h1>
+        <p className="mt-2 text-sm text-muted">The opportunity id does not match a loaded row.</p>
+        <Link href="/" className="mt-4 inline-block text-sm text-brass">
+          Back to the dashboard
+        </Link>
+      </Shell>
+    );
+  }
 
   return (
     <Shell>

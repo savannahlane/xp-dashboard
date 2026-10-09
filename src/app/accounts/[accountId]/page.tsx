@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { connection } from "next/server";
 import { Badge } from "@/components/ui/badge";
 import { Shell } from "@/components/shell";
-import { UnavailableBlock } from "@/components/states";
+import { DataError, UnavailableBlock } from "@/components/states";
 import { loadBook } from "@/lib/book";
 import { freshness } from "@/lib/dates";
 import { CURRENCY_LABEL, formatMoney, formatRate } from "@/lib/money";
@@ -20,12 +18,27 @@ const MOVEMENT: Record<Movement, string> = {
 };
 
 export default async function AccountPage({ params }: { params: Promise<{ accountId: string }> }) {
-  await connection();
   const { accountId } = await params;
   const loaded = loadBook();
-  if (!loaded.ok) notFound();
+  if (!loaded.ok) {
+    return (
+      <Shell>
+        <DataError />
+      </Shell>
+    );
+  }
   const account = getAccountDetail(loaded.book, decodeURIComponent(accountId));
-  if (!account) notFound();
+  if (!account) {
+    return (
+      <Shell>
+        <h1 className="text-xl font-semibold">That record is not in the dataset</h1>
+        <p className="mt-2 text-sm text-muted">The account id does not match a loaded row.</p>
+        <Link href="/" className="mt-4 inline-block text-sm text-brass">
+          Back to the dashboard
+        </Link>
+      </Shell>
+    );
+  }
   const today = new Date().toISOString().slice(0, 10);
   const fresh = freshness(loaded.book.meta.generated, today);
   const rollup = account.retentionTrust === "missing" ? null : account.rollup;
