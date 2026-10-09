@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import Decimal from "decimal.js";
 import { loadBook, parseBook } from "@/lib/book";
-import { buildDashboard } from "@/lib/query";
+import { buildDashboard, getAccountDetail, getOpportunityDetail } from "@/lib/query";
 import { ZERO } from "@/lib/money";
 
 describe("shipped book dataset", () => {
@@ -43,6 +43,13 @@ describe("shipped book dataset", () => {
     expect(model.accountHealth.available).toBe(false);
     expect(model.newBusinessPipeline.available).toBe(false);
     expect(model.renewalPipeline.available).toBe(false);
+    expect(model.typeColumnPresent).toBe(false);
+    expect(model.bookHealth.available).toBe(false);
+    const accountDetail = getAccountDetail(book, book.accounts[0].accountId);
+    expect(accountDetail?.salesforceUrl?.startsWith("https://granicus.lightning.force.com/lightning/r/Account/")).toBe(true);
+    const opportunityDetail = getOpportunityDetail(book, book.opportunities[0].opportunityId);
+    expect(opportunityDetail?.type).toBe("");
+    expect(opportunityDetail?.salesforceUrl).toBeNull();
     expect(book.accounts.some((account) => account.cecGrade === "A")).toBe(true);
     expect(model.freshness).toMatchObject({ asOf: "2026-09-17", stale: true });
 

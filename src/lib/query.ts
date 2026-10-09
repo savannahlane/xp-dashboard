@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { BLOCKERS } from "@/lib/blockers";
+import { BLOCKERS, type Blocker } from "@/lib/blockers";
 import {
   classifySource,
   type AccountRecord,
@@ -9,10 +9,19 @@ import {
   type SourceTrust,
 } from "@/lib/book";
 import { freshness, pace, type Freshness, type Pace } from "@/lib/dates";
-import { accountHealth, bookHealth, type BlockedMetric } from "@/lib/health";
+import { accountHealth, arrWeightedHealth, type BlockedMetric, type BookHealth } from "@/lib/health";
 import { normalizeKey } from "@/lib/keys";
 import { ZERO } from "@/lib/money";
-import { classifyStage, dedupedOpportunities, rollupOpenPipeline, type StageClass } from "@/lib/pipeline";
+import {
+  classifyOpportunityType,
+  classifyStage,
+  dedupedOpportunities,
+  rollupOpenPipeline,
+  splitOpenByType,
+  type OpportunityTypeClass,
+  type StageClass,
+} from "@/lib/pipeline";
+import { salesforceRecordUrl } from "@/lib/salesforce";
 import {
   productLinesFromRows,
   rollupAccounts,
@@ -55,7 +64,14 @@ export type OpportunityView = {
   stageClass: StageClass;
   includedInOpenPipeline: boolean;
   catalogItems: string[];
+  type: string;
+  typeClass: OpportunityTypeClass;
+  salesforceUrl: string | null;
 };
+
+export type PipelineSplitMetric =
+  | { available: false; blocker: Blocker }
+  | { available: true; arr: Decimal; count: number; unclassifiedOpen: number };
 
 export type DashboardModel = {
   freshness: Freshness;
@@ -82,10 +98,11 @@ export type DashboardModel = {
   unrecognizedStageCount: number;
   duplicateOpportunitiesCollapsed: number;
   conflictingOpportunitiesExcluded: number;
-  bookHealth: BlockedMetric;
+  bookHealth: BookHealth;
   accountHealth: BlockedMetric;
-  newBusinessPipeline: BlockedMetric;
-  renewalPipeline: BlockedMetric;
+  newBusinessPipeline: PipelineSplitMetric;
+  renewalPipeline: PipelineSplitMetric;
+  typeColumnPresent: boolean;
   accounts: DashboardAccount[];
   emptyReason: "no_selection" | "no_accounts" | null;
 };
@@ -93,6 +110,9 @@ export type DashboardModel = {
 export type DashboardAccount = ResolvedAccount & {
   openPipelineArr: Decimal;
   openPipelineCount: number;
+  newBusinessArr: Decimal;
+  renewalArr: Decimal;
+  salesforceUrl: string | null;
 };
 
 export type AccountDetail = ResolvedAccount & {
@@ -103,8 +123,9 @@ export type AccountDetail = ResolvedAccount & {
   openPipelineCount: number;
   health: BlockedMetric;
   contracts: BlockedMetric;
-  newBusinessPipeline: BlockedMetric;
-  renewalPipeline: BlockedMetric;
+  newBusinessPipeline: PipelineSplitMetric;
+  renewalPipeline: PipelineSplitMetric;
+  salesforceUrl: string | null;
   assignment: BlockedMetric;
   productIdentity: BlockedMetric;
 };
@@ -251,6 +272,9 @@ function viewsFor(book: Book, owners: Map<string, Owner>, names: Map<string, str
       stageClass,
       includedInOpenPipeline: stageClass === "open",
       catalogItems: row.catalogItems,
+      type: row.type,
+      typeClass: classifyOpportunityType(row.type),
+      salesforceUrl: salesforceRecordUrl("Opportunity", row.opportunityId),
     };
   });
   return dedupedOpportunities(prepared).kept.map((row) => ({
@@ -306,6 +330,7 @@ export function buildDashboard(book: Book, filter: DashboardFilter, today: strin
       accountId: row.accountId,
       stage: row.stage,
       arr: row.arr,
+      type: row.type,
       stageClass: classifyStage(row.stage),
       ownerKey: opportunityOwner(owners, row),
     }))
@@ -323,17 +348,25 @@ export function buildDashboard(book: Book, filter: DashboardFilter, today: strin
         }
       : rollupOpenPipeline(opportunityRows);
 
-  const openByAccount = new Map<string, { arr: Decimal; count: number }>();
-  if (pipelineTrust !== "missing") {
-    for (const row of dedupedOpportunities(opportunityRows).kept) {
-      if (row.stageClass !== "open") continue;
-      const bucket = openByAccount.get(row.accountId) ?? { arr: ZERO, count: 0 };
-      bucket.arr = bucket.arr.plus(row.arr);
-      bucket.count += 1;
-      openByAccount.set(row.accountId, bucket);
-    }
+  const keptOpportunities = pipelineTrust === "missing" ? [] : dedupedOpportunities(opportunityRows).kept;
+  const typeColumnPresent = book.opportunities.some((row) => row.type.trim() !== "");
+  const typeSplit = splitOpenByType(keptOpportunities);
+  const openByAccount = new Map<string, { arr: Decimal; count: number; newBusiness: Decimal; renewal: Decimal }>();
+  for (const row of keptOpportunities) {
+    if (row.stageClass !== "open") continue;
+    const bucket = openByAccount.get(row.accountId) ?? {
+      arr: ZERO,
+      count: 0,
+      newBusiness: ZERO,
+      renewal: ZERO,
+    };
+    bucket.arr = bucket.arr.plus(row.arr);
+    bucket.count += 1;
+    const kind = classifyOpportunityType(row.type);
+    if (kind === "new_business") bucket.newBusiness = bucket.newBusiness.plus(row.arr);
+    if (kind === "existing_business") bucket.renewal = bucket.renewal.plus(row.arr);
+    openByAccount.set(row.accountId, bucket);
   }
-
   const currentBookArr = visible.reduce((sum, account) => {
     if (!account.report) return sum;
     return sum.plus(account.report.arr);
@@ -371,14 +404,45 @@ export function buildDashboard(book: Book, filter: DashboardFilter, today: strin
     unrecognizedStageCount: pipeline.unrecognizedCount,
     duplicateOpportunitiesCollapsed: pipeline.duplicatesCollapsed,
     conflictingOpportunitiesExcluded: pipeline.conflictsExcluded,
-    bookHealth: bookHealth(),
+    bookHealth: arrWeightedHealth(
+      visible.flatMap((account) => (account.report ? [{ score: null, arr: account.report.arr }] : [])),
+    ),
     accountHealth: accountHealth(),
-    newBusinessPipeline: { available: false, blocker: BLOCKERS.newBusinessPipeline },
-    renewalPipeline: { available: false, blocker: BLOCKERS.renewalPipeline },
+    typeColumnPresent,
+    newBusinessPipeline:
+      pipelineTrust === "missing" || !typeColumnPresent
+        ? { available: false, blocker: BLOCKERS.newBusinessPipeline }
+        : {
+            available: true,
+            arr: typeSplit.newBusinessArr,
+            count: typeSplit.newBusinessCount,
+            unclassifiedOpen: typeSplit.unclassifiedOpen,
+          },
+    renewalPipeline:
+      pipelineTrust === "missing" || !typeColumnPresent
+        ? { available: false, blocker: BLOCKERS.renewalPipeline }
+        : {
+            available: true,
+            arr: typeSplit.renewalArr,
+            count: typeSplit.renewalCount,
+            unclassifiedOpen: typeSplit.unclassifiedOpen,
+          },
     accounts: visible
       .map((account) => {
-        const open = openByAccount.get(account.accountId) ?? { arr: ZERO, count: 0 };
-        return { ...account, openPipelineArr: open.arr, openPipelineCount: open.count };
+        const open = openByAccount.get(account.accountId) ?? {
+          arr: ZERO,
+          count: 0,
+          newBusiness: ZERO,
+          renewal: ZERO,
+        };
+        return {
+          ...account,
+          openPipelineArr: open.arr,
+          openPipelineCount: open.count,
+          newBusinessArr: open.newBusiness,
+          renewalArr: open.renewal,
+          salesforceUrl: salesforceRecordUrl("Account", account.accountId),
+        };
       })
       .sort((a, b) => a.accountName.localeCompare(b.accountName)),
     emptyReason: emptyReason ?? noAccounts,
@@ -394,6 +458,26 @@ export function getAccountDetail(book: Book, accountId: string): AccountDetail |
   const open = opportunities.filter((row) => row.includedInOpenPipeline);
   const retentionTrust = classifySource(book.meta.sources.product_arr, book.productArr.length);
   const pipelineTrust = classifySource(book.meta.sources.opportunities, book.opportunities.length);
+  const typeColumnPresent = book.opportunities.some((row) => row.type.trim() !== "");
+  const typeSplit = splitOpenByType(opportunities);
+  const newBusinessPipeline: PipelineSplitMetric =
+    pipelineTrust === "missing" || !typeColumnPresent
+      ? { available: false, blocker: BLOCKERS.newBusinessPipeline }
+      : {
+          available: true,
+          arr: typeSplit.newBusinessArr,
+          count: typeSplit.newBusinessCount,
+          unclassifiedOpen: typeSplit.unclassifiedOpen,
+        };
+  const renewalPipeline: PipelineSplitMetric =
+    pipelineTrust === "missing" || !typeColumnPresent
+      ? { available: false, blocker: BLOCKERS.renewalPipeline }
+      : {
+          available: true,
+          arr: typeSplit.renewalArr,
+          count: typeSplit.renewalCount,
+          unclassifiedOpen: typeSplit.unclassifiedOpen,
+        };
   return {
     ...account,
     rollup: retentionTrust === "missing" ? null : account.rollup,
@@ -406,8 +490,9 @@ export function getAccountDetail(book: Book, accountId: string): AccountDetail |
     openPipelineCount: open.length,
     health: accountHealth(),
     contracts: { available: false, blocker: BLOCKERS.contractDates },
-    newBusinessPipeline: { available: false, blocker: BLOCKERS.newBusinessPipeline },
-    renewalPipeline: { available: false, blocker: BLOCKERS.renewalPipeline },
+    newBusinessPipeline,
+    renewalPipeline,
+    salesforceUrl: salesforceRecordUrl("Account", account.accountId),
     assignment: { available: false, blocker: BLOCKERS.assignmentHistory },
     productIdentity: { available: false, blocker: BLOCKERS.productIdentity },
   };

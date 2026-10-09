@@ -1,9 +1,17 @@
 import Decimal from "decimal.js";
-import { BLOCKER_LIST } from "@/lib/blockers";
+import { BLOCKER_LIST, type Blocker } from "@/lib/blockers";
 import { paceBand } from "@/lib/dates";
 import { CURRENCY_LABEL, type RateStatus } from "@/lib/money";
-import type { DashboardAccount, DashboardModel } from "@/lib/query";
+import type { DashboardAccount, DashboardModel, PipelineSplitMetric } from "@/lib/query";
 import type { RateValue } from "@/lib/retention";
+
+export type PipelineSplitDTO =
+  | { available: false; blocker: Blocker }
+  | { available: true; arr: string; count: number; unclassifiedOpen: number };
+
+export type BookHealthDTO =
+  | { available: false; blocker: Blocker }
+  | { available: true; score: string; accounts: number };
 
 export type AccountRowDTO = {
   accountId: string;
@@ -19,6 +27,8 @@ export type AccountRowDTO = {
   nrrRatio: RateStatus;
   openPipelineArr: string | null;
   openPipelineCount: number;
+  newBusinessArr: string | null;
+  renewalArr: string | null;
 };
 
 export type DashboardDTO = {
@@ -48,14 +58,24 @@ export type DashboardDTO = {
   openPipelineCount: number;
   closedExcludedCount: number;
   unrecognizedStageCount: number;
-  bookHealth: DashboardModel["bookHealth"];
+  bookHealth: BookHealthDTO;
   accountHealth: DashboardModel["accountHealth"];
-  newBusinessPipeline: DashboardModel["newBusinessPipeline"];
-  renewalPipeline: DashboardModel["renewalPipeline"];
+  newBusinessPipeline: PipelineSplitDTO;
+  renewalPipeline: PipelineSplitDTO;
   accounts: AccountRowDTO[];
   emptyReason: DashboardModel["emptyReason"];
   gaps: typeof BLOCKER_LIST;
 };
+
+function splitDto(split: PipelineSplitMetric): PipelineSplitDTO {
+  if (!split.available) return split;
+  return {
+    available: true,
+    arr: split.arr.toString(),
+    count: split.count,
+    unclassifiedOpen: split.unclassifiedOpen,
+  };
+}
 
 function rateDto(rate: RateValue | { status: "unavailable" }): RateStatus {
   if (rate.status === "value") return { status: "value", value: rate.value.toString() };
@@ -120,10 +140,12 @@ export function toDashboardDTO(model: DashboardModel): DashboardDTO {
     openPipelineCount: model.openPipelineCount,
     closedExcludedCount: model.closedExcludedCount,
     unrecognizedStageCount: model.unrecognizedStageCount,
-    bookHealth: model.bookHealth,
+    bookHealth: model.bookHealth.available
+      ? { available: true, score: model.bookHealth.score.toString(), accounts: model.bookHealth.accounts }
+      : model.bookHealth,
     accountHealth: model.accountHealth,
-    newBusinessPipeline: model.newBusinessPipeline,
-    renewalPipeline: model.renewalPipeline,
+    newBusinessPipeline: splitDto(model.newBusinessPipeline),
+    renewalPipeline: splitDto(model.renewalPipeline),
     accounts: model.accounts.map((account) => ({
       accountId: account.accountId,
       accountName: account.accountName,
@@ -134,6 +156,8 @@ export function toDashboardDTO(model: DashboardModel): DashboardDTO {
       ...accountRates(model, account),
       openPipelineArr: model.pipelineTrust === "missing" ? null : account.openPipelineArr.toString(),
       openPipelineCount: model.pipelineTrust === "missing" ? 0 : account.openPipelineCount,
+      newBusinessArr: model.newBusinessPipeline.available ? account.newBusinessArr.toString() : null,
+      renewalArr: model.renewalPipeline.available ? account.renewalArr.toString() : null,
     })),
     emptyReason: model.emptyReason,
     gaps: BLOCKER_LIST,

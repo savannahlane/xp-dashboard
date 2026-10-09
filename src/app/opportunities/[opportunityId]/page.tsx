@@ -5,6 +5,7 @@ import { DataError, UnavailableBlock } from "@/components/states";
 import { loadBook } from "@/lib/book";
 import { CURRENCY_LABEL, formatMoney } from "@/lib/money";
 import { getOpportunityDetail } from "@/lib/query";
+import { SALESFORCE_BASE } from "@/lib/salesforce";
 
 export default async function OpportunityPage({
   params,
@@ -38,6 +39,16 @@ export default async function OpportunityPage({
       <Link href={`/accounts/${encodeURIComponent(opportunity.accountId)}`} className="text-sm text-muted hover:text-foreground">
         ← {opportunity.accountName}
       </Link>
+      {opportunity.salesforceUrl ? (
+        <a href={opportunity.salesforceUrl} className="mt-2 block text-sm text-brass" target="_blank" rel="noreferrer">
+          Open opportunity in Salesforce
+        </a>
+      ) : (
+        <p className="mt-2 text-sm text-dim">
+          Salesforce links use {SALESFORCE_BASE} for Account ids starting with 001 and Opportunity ids starting with 006.
+          This id is not one of those.
+        </p>
+      )}
       <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{opportunity.opportunityId}</h1>
@@ -49,7 +60,8 @@ export default async function OpportunityPage({
       <dl className="mt-5 grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-2">
         <Item label="Opportunity id" value={opportunity.opportunityId} />
         <Item label="Account" value={`${opportunity.accountName} · ${opportunity.accountId}`} />
-        <Item label="Type / record type" value="Unavailable" />
+        <Item label="Type" value={typeLabel(opportunity.typeClass, opportunity.type)} />
+        <Item label="Record type" value="Unavailable" />
         <Item label="Sales process" value={opportunity.salesProcess || "Blank"} />
         <Item label="Stage" value={opportunity.stage || "Blank"} />
         <Item label="Close date" value={opportunity.closeDate || "Blank"} />
@@ -63,7 +75,7 @@ export default async function OpportunityPage({
           label="Open pipeline"
           value={opportunity.includedInOpenPipeline ? "Included · arr, unweighted" : `Excluded · stage is ${opportunity.stageClass}`}
         />
-        <Item label="Salesforce record" value="Unavailable" />
+        <Item label="Salesforce record" value={opportunity.salesforceUrl ?? "Unavailable for this id"} />
       </dl>
 
       <div className="mt-5 grid gap-4">
@@ -73,6 +85,13 @@ export default async function OpportunityPage({
       </div>
     </Shell>
   );
+}
+
+function typeLabel(kind: string, raw: string): string {
+  if (kind === "new_business") return "New Business";
+  if (kind === "existing_business") return "Existing Business · renewal";
+  if (kind === "missing") return "Missing from this feed";
+  return raw ? `${raw} · unrecognized` : "Unrecognized";
 }
 
 function Item({ label, value }: { label: string; value: string }) {

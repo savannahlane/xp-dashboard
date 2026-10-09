@@ -20,7 +20,7 @@ There is no warehouse, Salesforce API client, or database. Column mappings are i
 
 ## Metric formulas
 
-Amounts use `decimal.js`. Display is cents, labeled **Converted ARR ($)**. The Account Team column is `Annual Recurring Revenue (A) (converted)`. No ISO currency code is stored.
+Amounts use `decimal.js`. Display is cents, labeled **USD**. The Account Team column is `Annual Recurring Revenue (A) (converted)`, and that converted amount is USD.
 
 The measurement window is `meta.period_start` through `meta.period_end` (FY26 year to date, 2026-01-01 to 2026-09-17). Ending ARR is `arr_current` as of the period end. It is not a fiscal year-end close.
 
@@ -33,7 +33,7 @@ retained_arr = min(arr_start, max(arr_current, 0))
 gross_retention = min(1, sum(retained_arr) / sum(arr_start))
 ```
 
-Calculated at product, account, and XP-book level. Duplicate rows for the same account and product string are summed before `min`. The product string is the documented identity. A different string is a different product.
+Calculated at product, account, and XP-book level. Duplicate rows for the same account and product string are summed before `min`. Product name is the approved identity until a subscription id exists. A different string is a different product.
 
 Expansion does not raise gross retention. Downgrades and churn lower it. A product with no starting ARR is excluded. A churned product stays in the starting cohort with ending ARR of zero. Each result is capped at 100%.
 
@@ -52,7 +52,7 @@ The existing static page’s “NRR” is `nrr_ratio`. This dashboard shows that
 
 ### Book health and account health
 
-Blocked. No stored score and no documented aggregation. The dashboard does not average `cec_grade` or at-risk counts. See [DISCOVERY.md](DISCOVERY.md).
+Book health is an ARR-weighted average of stored account health scores. The weight is current Account Team ARR. Accounts with no score are left out of both the numerator and the denominator. No account health score, scale, or drivers are stored, so the rollup stays unavailable. `cec_grade` is not turned into a score.
 
 ### Pipeline
 
@@ -60,7 +60,7 @@ Open stages, verified in the shipped feed and the existing engine: Discovery, Pr
 
 The total is the sum of `opportunities.arr` after collapsing duplicate opportunity ids. Conflicting duplicates are dropped. The total is unweighted because probability is not in the feed. `Opportunity.Amount` is not present and is not assumed.
 
-New-business and renewal splits are blocked. `renewals.expansion_arr` is not added to the opportunity total.
+Open new-business pipeline is that same `arr` where `Type` is `New Business`. Open renewal pipeline is `arr` where `Type` is `Existing Business`. Closed stages stay out of both. `sales_process` is not a substitute for Type. `renewals.expansion_arr` is not added. The shipped opportunities file has no `type` column, so both splits stay unavailable until that column is uploaded.
 
 ### Cohort and assignment
 
@@ -78,11 +78,12 @@ A snapshot is stale when `meta.generated` is more than 7 days before today, matc
 
 ## Known data gaps
 
-- No health score, scale, timestamp, cadence, drivers, or book-health rule.
-- No Opportunity Type, Record Type, Amount, Probability, Owner, name, or org URL.
-- No open renewal pipeline and no verified New Business value.
+- No account health score, so the approved ARR-weighted book-health average cannot be calculated.
+- The shipped opportunities feed has no `type` column. The rule is `New Business` versus `Existing Business` (renewal).
+- No opportunity name, Record Type, Amount, Probability, or Owner.
+- Record links use `https://granicus.lightning.force.com/` for Salesforce Account (`001`) and Opportunity (`006`) ids. The shipped opportunity ids are sample ids, so those links are omitted.
 - No contract start, end, or term.
-- No subscription id, SKU, or product family.
+- No subscription id, SKU, or product family. Product name is the approved grain for now.
 - No XP assignment history and no VP hierarchy.
 - Product ARR, opportunities, and renewals are sample until replaced.
 - No row-level security beyond whoever can read this app.
@@ -106,9 +107,9 @@ Optional:
 BOOK_DATA_PATH=/absolute/path/book-of-business.json npm run dev
 ```
 
-## Questions
+## Confirmed rules
 
-1. Which source field and which exact values should split open pipeline into New Business and Renewal?
-2. Once an account health score exists, should XP book health be a straight average or an ARR-weighted average?
-3. Is the product-name grain approved until a subscription id exists?
-4. Which ISO currency does “converted” ARR use, and what is the Salesforce org domain for record links?
+- Opportunity `Type` of `New Business` is new business. `Existing Business` is renewal.
+- Book health, once account scores exist, is an ARR-weighted average.
+- Product name remains the product identity until a subscription id is available.
+- Currency is USD. Salesforce links use `https://granicus.lightning.force.com/`.

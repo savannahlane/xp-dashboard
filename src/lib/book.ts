@@ -61,6 +61,8 @@ export type OpportunityRecord = {
   arr: Decimal;
   sourcedBy: string;
   catalogItems: string[];
+  /** Opportunity.Type. Empty when the feed does not include the column. */
+  type: string;
 };
 
 export type RenewalRecord = {
@@ -233,6 +235,7 @@ export function parseBook(input: unknown): Book {
       arr: moneyField(record, "arr", pathLabel),
       sourcedBy: optionalString(record, "sourced_by"),
       catalogItems: stringList(record.catalog_items, `${pathLabel}.catalog_items`),
+      type: optionalString(record, "type") || (typeof record.Type === "string" ? record.Type : ""),
     };
   });
 

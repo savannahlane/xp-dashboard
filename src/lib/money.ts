@@ -2,8 +2,8 @@ import Decimal from "decimal.js";
 
 Decimal.set({ precision: 40, rounding: Decimal.ROUND_HALF_UP });
 
-/** Converted ARR from the feeds. There is no ISO currency code in the dataset. */
-export const CURRENCY_LABEL = "Converted ARR ($)";
+/** Confirmed currency for converted ARR. */
+export const CURRENCY_LABEL = "USD";
 
 export function dec(value: Decimal.Value): Decimal {
   return new Decimal(value);

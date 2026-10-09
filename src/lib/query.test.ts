@@ -71,6 +71,7 @@ function opportunity(
     arr: new Decimal(0),
     sourcedBy: "XP",
     catalogItems: [],
+    type: "",
     ...overrides,
   };
 }
@@ -170,6 +171,30 @@ describe("assignment, pipeline, and blocked metrics", () => {
     expect(model.newBusinessPipeline.available).toBe(false);
     expect(model.renewalPipeline.available).toBe(false);
     expect(model.accounts[0].openPipelineArr.toFixed(2)).toBe("50.00");
+    expect(model.bookHealth.available).toBe(false);
+  });
+
+  it("splits open pipeline by Opportunity Type and leaves sales process unclassified", () => {
+    const data = book();
+    data.accounts.push(account({ accountId: "A", xpId: "Current XP", arr: new Decimal("100") }));
+    data.opportunities.push(
+      opportunity({ opportunityId: "nb", accountId: "A", type: "New Business", salesProcess: "Upsell", stage: "Proposal", arr: new Decimal("40") }),
+      opportunity({ opportunityId: "ren", accountId: "A", type: "Existing Business", stage: "Negotiation", arr: new Decimal("25") }),
+      opportunity({ opportunityId: "closed-ren", accountId: "A", type: "Existing Business", stage: "Closed Won", arr: new Decimal("999") }),
+      opportunity({ opportunityId: "untyped", accountId: "A", type: "", salesProcess: "New Program", stage: "Discovery", arr: new Decimal("7") }),
+    );
+    data.renewals.push(renewal({ opportunityId: "closed-feed", accountId: "A", expansionArr: new Decimal("5000") }));
+    const model = buildDashboard(data, { kind: "all" }, TODAY);
+    expect(model.openPipelineArr.toFixed(2)).toBe("72.00");
+    expect(model.newBusinessPipeline.available).toBe(true);
+    expect(model.renewalPipeline.available).toBe(true);
+    if (model.newBusinessPipeline.available) {
+      expect(model.newBusinessPipeline.arr.toFixed(2)).toBe("40.00");
+      expect(model.newBusinessPipeline.unclassifiedOpen).toBe(1);
+    }
+    if (model.renewalPipeline.available) expect(model.renewalPipeline.arr.toFixed(2)).toBe("25.00");
+    expect(model.accounts[0].newBusinessArr.toFixed(2)).toBe("40.00");
+    expect(model.accounts[0].renewalArr.toFixed(2)).toBe("25.00");
   });
 
   it("does not multiply opportunity ARR by product rows or duplicate opportunity ids", () => {

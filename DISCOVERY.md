@@ -20,7 +20,7 @@ XP assignment history: not stored. The existing engine attributes the whole peri
 | Current account ARR | Current converted ARR | Account Team report | `Annual Recurring Revenue (A) (converted)`, fallback `Annual Recurring Revenue (A)` → `arr` | Y | Single as-of value for 2026-09-17. Not a starting snapshot. |
 | ARR snapshot date | Snapshot date | `meta` | `generated`, `period_end` | Partial | No per-row snapshot date. |
 | Product / subscription id | Stable subscription id | Product ARR feed | — | N | Grain is `account_id` + `product`. |
-| Product name | Product | Product ARR feed | `product` | Y | Solution-area name. Documented match key. Sample feed. |
+| Product name | Product | Product ARR feed | `product` | Y | Approved identity until a subscription id exists. Sample feed. |
 | SKU | SKU | — | — | N | |
 | Product family | Family | — | — | N | |
 | Product starting ARR | ARR at period start | Product ARR feed | `arr_start` | Y | Sample. “ARR on the first day of the period.” |
@@ -46,33 +46,35 @@ XP assignment history: not stored. The existing engine attributes the whole peri
 | Opportunity ARR | Pipeline measure | Opportunities feed | `arr` | Y | Documented measure. Unweighted. Sample. |
 | Stage | Stage | Opportunities feed | `stage` | Y | `Closed Won`, `Negotiation`, `Proposal`, `Discovery`. |
 | Status / closed flag | IsClosed | — | — | N | Open = Discovery, Proposal, Negotiation. `Closed Won` excluded. Any other stage is unrecognized and excluded. |
-| Opportunity type | Type | — | — | N | |
+| Opportunity type | Type | Opportunities feed | `type` / Salesforce `Type` | Rule Y, column N | Values: `New Business`, `Existing Business` (renewal). The shipped file has no column. `sales_process` is not a substitute. |
 | Record type | Record type | — | — | N | |
 | Sales process | Process name | Opportunities feed | `sales_process` | Y | `Win-Back`, `New Program`, `Competitive Displacement`, `Cross-Sell`, `Co-Term`, `Upsell`. Not mapped to New Business or Renewal. |
 | Probability | Probability | — | — | N | No weighted amount. |
 | Close date | Close date | Opportunities feed | `close_date` | Y | |
 | Opportunity owner | Owner | — | — | N | `xp_id` is the feed’s XP column, not Opportunity.Owner. |
 | Sourced by | XP or AE | Opportunities feed | `sourced_by` | Y | `XP` or `AE`. Both count in unsplit open pipeline. |
-| Salesforce record URL | Link | — | — | N | No org domain configured. |
-| New Business pipeline | Open NB ARR | — | — | N | Blocked. No verified Type or Record Type. |
-| Renewal pipeline | Open renewal ARR | Renewals feed | Closed outcomes only | N | Feed is closed renewals. `expansion_arr` is not added to opportunity totals. |
-| Book health | XP rollup | — | — | N | No stored rollup and no documented average. Not calculated. |
+| Salesforce record URL | Link | Granicus Lightning | `https://granicus.lightning.force.com/lightning/r/{Object}/{Id}/view` | Y | Built for Account `001` and Opportunity `006` ids. Shipped opportunity ids are sample, so those links are omitted. |
+| New Business pipeline | Open NB ARR | Opportunities `type` + `arr` | `Type` = `New Business` | Rule Y, column N | Calculated when `type` is present. Shipped file cannot compute it. |
+| Renewal pipeline | Open renewal ARR | Opportunities `type` + `arr` | `Type` = `Existing Business` | Rule Y, column N | Open only. Closed renewals and `expansion_arr` are not added. |
+| Book health | XP rollup | Account health scores | ARR-weighted average | Rule Y, scores N | Weight is current Account Team ARR. No score is stored. |
 | Fiscal year settings | Fiscal calendar | `meta` | `period_label`, `period_start`, `period_end` | Partial | Label is `FY26 year to date`. Start is 2026-01-01. No FiscalYearSettings object. |
-| Currency code | ISO code | Account Team report | Column says `(converted)` | N | Shown as Converted ARR with `$`, matching the existing page. |
+| Currency code | ISO code | Confirmed | USD | Y | Account Team column remains `Annual Recurring Revenue (A) (converted)`. |
 | Row-level security | Authz | — | — | N | Access is the repo/host boundary. No role model added. |
 
 ## Opportunity type values
 
-There is no Opportunity Type or Record Type column. The opportunities feed is documented as non-renewal. Observed `sales_process` values are Win-Back, New Program, Competitive Displacement, Cross-Sell, Co-Term, and Upsell. None is documented as New Business. Renewal is a separate closed feed with outcomes Renewed, Downgraded, and Churned.
+Opportunity Type is `New Business` or `Existing Business`. Existing Business is renewal. The shipped opportunities feed does not include that column, so the dashboard does not classify `sales_process` values (Win-Back, New Program, Competitive Displacement, Cross-Sell, Co-Term, Upsell) into either pipeline.
 
 ## Book health
 
-No stored XP health rollup. The points and badge system in `CFG` is not an account-health formula. A straight average and an ARR-weighted average are both unapproved, so book health is blocked.
+The approved rollup is an ARR-weighted average of account health scores, weighted by current Account Team ARR. No account health score is stored, so the average is not shown. `cec_grade` is not used as that score.
 
 ## What the dashboard calculates
 
 - Gross retention, net ARR change, and NRR ratio from `product_arr`, labeled sample.
 - Assigned-account count and current book ARR from the Account Team report.
 - Unsplit open pipeline from `opportunities.arr` for Discovery, Proposal, and Negotiation, labeled sample.
+- New-business and renewal pipeline when `type` is present (`New Business` and `Existing Business`). The shipped file does not include that column.
+- Salesforce record links for real Account and Opportunity ids. Amounts are labeled USD.
 
 Historical retention is not reconstructed from current account ARR. If `product_arr` is missing, retention is unavailable.

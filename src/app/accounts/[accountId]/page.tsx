@@ -55,6 +55,11 @@ export default async function AccountPage({ params }: { params: Promise<{ accoun
             {account.xpName} · {account.accountId}
             {account.onAccountReport ? "" : " · Not on the current Account Team report"}
           </p>
+          {account.salesforceUrl ? (
+            <a href={account.salesforceUrl} className="mt-2 inline-block text-sm text-brass" target="_blank" rel="noreferrer">
+              Open account in Salesforce
+            </a>
+          ) : null}
         </div>
         <div className="text-right text-xs text-dim">
           <div>{loaded.book.meta.periodLabel}</div>
@@ -187,7 +192,10 @@ export default async function AccountPage({ params }: { params: Promise<{ accoun
           <h2 className="text-base font-semibold">Opportunities</h2>
           <p className="text-xs text-dim">
             Open pipeline on this account is {formatMoney(account.openPipelineArr)} across {account.openPipelineCount}{" "}
-            open rows. The measure is arr. New-business and renewal splits are unavailable.
+            open rows. The measure is arr in {CURRENCY_LABEL}.
+            {account.newBusinessPipeline.available
+              ? ` New business ${formatMoney(account.newBusinessPipeline.arr)}. Renewal (Existing Business) ${formatMoney(account.renewalPipeline.available ? account.renewalPipeline.arr : "0")}.`
+              : " Type is not in this feed, so the new-business and renewal splits are unavailable."}
             {account.pipelineTrust === "sample" ? " This feed is sample." : ""}
           </p>
         </div>
@@ -196,6 +204,7 @@ export default async function AccountPage({ params }: { params: Promise<{ accoun
             <thead className="bg-surface2 text-xs text-muted">
               <tr>
                 <th className="px-3 py-2 text-left font-medium">Opportunity</th>
+                <th className="px-3 py-2 text-left font-medium">Type</th>
                 <th className="px-3 py-2 text-left font-medium">Sales process</th>
                 <th className="px-3 py-2 text-left font-medium">Stage</th>
                 <th className="px-3 py-2 text-left font-medium">Close date</th>
@@ -206,7 +215,7 @@ export default async function AccountPage({ params }: { params: Promise<{ accoun
             <tbody>
               {account.opportunities.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-muted">
+                  <td colSpan={7} className="px-4 py-6 text-muted">
                     No opportunity rows for this account.
                   </td>
                 </tr>
@@ -220,7 +229,13 @@ export default async function AccountPage({ params }: { params: Promise<{ accoun
                       >
                         {row.opportunityId}
                       </Link>
+                      {row.salesforceUrl ? (
+                        <a href={row.salesforceUrl} className="ml-2 text-xs text-brass" target="_blank" rel="noreferrer">
+                          Salesforce
+                        </a>
+                      ) : null}
                     </td>
+                    <td className="px-3 py-2">{typeLabel(row.typeClass, row.type)}</td>
                     <td className="px-3 py-2">{row.salesProcess || "—"}</td>
                     <td className="px-3 py-2">{row.stage || "—"}</td>
                     <td className="px-3 py-2">{row.closeDate || "—"}</td>
@@ -237,6 +252,13 @@ export default async function AccountPage({ params }: { params: Promise<{ accoun
       </section>
     </Shell>
   );
+}
+
+function typeLabel(kind: string, raw: string): string {
+  if (kind === "new_business") return "New Business";
+  if (kind === "existing_business") return "Existing Business";
+  if (kind === "missing") return "Missing";
+  return raw || "Unrecognized";
 }
 
 function MovementItem({ label, value }: { label: string; value: string }) {

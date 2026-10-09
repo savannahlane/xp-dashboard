@@ -10,9 +10,9 @@ export const BLOCKERS = {
     id: "book_health",
     title: "Book health",
     summary:
-      "No stored XP book-health rollup is in this dataset, and the repository does not document an aggregation rule.",
+      "Book health is an ARR-weighted average of account health scores. No account health score is stored, so the rollup cannot be calculated.",
     detail:
-      "A straight average and an ARR-weighted average of account scores would produce different results. Neither is approved, so no average is shown. CAPDB Engagement Cloud Grade (cec_grade) is a separate report column and is not used as a health score.",
+      "The approved weight is current Account Team ARR. Accounts with no score are left out of the average. CAPDB Engagement Cloud Grade (cec_grade) is not converted into a score.",
   },
   accountHealth: {
     id: "account_health",
@@ -25,16 +25,16 @@ export const BLOCKERS = {
   newBusinessPipeline: {
     id: "new_business_pipeline",
     title: "Open new-business pipeline",
-    summary: "No Opportunity Type or Record Type value for New Business is present.",
+    summary: "Opportunity Type is not in the shipped opportunities feed.",
     detail:
-      "The opportunities feed has sales_process, stage, close_date, arr, and sourced_by. It has no Type, Record Type, Amount, or Probability. Observed sales_process values are Win-Back, New Program, Competitive Displacement, Cross-Sell, Co-Term, and Upsell. The repository does not map any of those to New Business.",
+      "Open new-business pipeline is opportunities.arr where Type is New Business and the stage is open. sales_process is not used as a substitute. The shipped file has no type column.",
   },
   renewalPipeline: {
     id: "renewal_pipeline",
     title: "Open renewal pipeline",
-    summary: "No open renewal pipeline is stored.",
+    summary: "Opportunity Type is not in the shipped opportunities feed.",
     detail:
-      "Renewals are a separate feed of closed renewal opportunities (outcome Renewed, Downgraded, or Churned). That feed is not an open pipeline. expansion_arr on those rows is not added to opportunity totals. Opportunity sales_process has no Renewal value.",
+      "Open renewal pipeline is opportunities.arr where Type is Existing Business and the stage is open. The closed renewals feed and expansion_arr are not added to that total.",
   },
   contractDates: {
     id: "contract_dates",
@@ -46,10 +46,9 @@ export const BLOCKERS = {
   opportunityRecord: {
     id: "opportunity_record",
     title: "Opportunity record fields",
-    summary:
-      "Name, Type, Record Type, Amount, Probability, Owner, and a Salesforce record URL are not in the feed.",
+    summary: "Name, Record Type, Amount, Probability, and Owner are not in the feed.",
     detail:
-      "Totals use the arr column on the opportunities feed. That column is documented as ARR, not Opportunity.Amount. xp_id on the row is the feed's XP column, not Opportunity.Owner. No Salesforce instance URL is configured, so record links are omitted.",
+      "Totals use the arr column, in USD. That column is the feed's ARR measure, not Opportunity.Amount. Type is read when the column is present. Record links use https://granicus.lightning.force.com/ when the id is a Salesforce Account (001) or Opportunity (006) id.",
   },
   assignmentHistory: {
     id: "assignment_history",
@@ -61,9 +60,9 @@ export const BLOCKERS = {
   productIdentity: {
     id: "product_identity",
     title: "Product identity",
-    summary: "No subscription id, product id, SKU, or product family column is in the product ARR feed.",
+    summary: "Product name is the approved identity until a subscription id exists.",
     detail:
-      "The feed is documented as one row per account per product, and the existing metric engine matches on the product column (solution-area name). Gross retention uses that documented grain. A renewal that continues under a different product string is not matched.",
+      "There is no subscription id, SKU, or product family column. Gross retention matches the product column. A renewal that continues under a different product string is a different product.",
   },
   pointInTimeArr: {
     id: "point_in_time_arr",
@@ -90,10 +89,9 @@ export const BLOCKERS = {
   currencyCode: {
     id: "currency_code",
     title: "Currency code",
-    summary:
-      "The Account Team column is Annual Recurring Revenue (A) (converted). No ISO currency code is stored.",
+    summary: "Converted ARR is USD.",
     detail:
-      "Amounts are labeled Converted ARR and formatted with a dollar sign, matching the existing dashboard.",
+      "The Account Team column is Annual Recurring Revenue (A) (converted). Amounts are labeled USD.",
   },
   authorization: {
     id: "authorization",

@@ -245,9 +245,28 @@ export function Dashboard({ dto }: { dto: DashboardDTO }) {
               : "Ending / starting for the same cohort"
           }
         />
-        <BlockedCard label="Book health" summary={dto.bookHealth.blocker.summary} />
-        <BlockedCard label="Open new-business pipeline" summary={dto.newBusinessPipeline.blocker.summary} />
-        <BlockedCard label="Open renewal pipeline" summary={dto.renewalPipeline.blocker.summary} />
+        {dto.bookHealth.available ? (
+          <MetricCard
+            label="Book health"
+            value={new Decimal(dto.bookHealth.score).toFixed(2)}
+            trust="production"
+            note={`ARR-weighted average of ${dto.bookHealth.accounts} stored account scores · weight is current Account Team ARR`}
+          />
+        ) : (
+          <BlockedCard label="Book health" summary={dto.bookHealth.blocker.summary} />
+        )}
+        <PipelineSplitCard
+          label="Open new-business pipeline"
+          split={dto.newBusinessPipeline}
+          trust={dto.pipelineTrust}
+          definition="Type = New Business"
+        />
+        <PipelineSplitCard
+          label="Open renewal pipeline"
+          split={dto.renewalPipeline}
+          trust={dto.pipelineTrust}
+          definition="Type = Existing Business"
+        />
         <MetricCard
           label="Open pipeline"
           value={dto.openPipelineArr === null ? "Unavailable" : formatMoney(dto.openPipelineArr)}
@@ -314,10 +333,16 @@ export function Dashboard({ dto }: { dto: DashboardDTO }) {
                 <th className="px-3 py-2 text-right font-medium text-muted" title={dto.accountHealth.blocker.summary}>
                   Health
                 </th>
-                <th className="px-3 py-2 text-right font-medium text-muted" title={dto.newBusinessPipeline.blocker.summary}>
+                <th
+                  className="px-3 py-2 text-right font-medium text-muted"
+                  title={dto.newBusinessPipeline.available ? "Type = New Business" : dto.newBusinessPipeline.blocker.summary}
+                >
                   New business
                 </th>
-                <th className="px-3 py-2 text-right font-medium text-muted" title={dto.renewalPipeline.blocker.summary}>
+                <th
+                  className="px-3 py-2 text-right font-medium text-muted"
+                  title={dto.renewalPipeline.available ? "Type = Existing Business" : dto.renewalPipeline.blocker.summary}
+                >
                   Renewal pipeline
                 </th>
                 {header("pipeline", "Open pipeline", "Unsplit opportunities.arr")}
@@ -348,8 +373,12 @@ export function Dashboard({ dto }: { dto: DashboardDTO }) {
                     <td className="px-3 py-2 text-right">{formatRate(row.netArrChangeRate, "change")}</td>
                     <td className="px-3 py-2 text-right">{formatRate(row.nrrRatio)}</td>
                     <td className="px-3 py-2 text-right text-amber">Unavailable</td>
-                    <td className="px-3 py-2 text-right text-amber">Unavailable</td>
-                    <td className="px-3 py-2 text-right text-amber">Unavailable</td>
+                    <td className="px-3 py-2 text-right">
+                      {row.newBusinessArr === null ? <span className="text-amber">Unavailable</span> : formatMoney(row.newBusinessArr)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {row.renewalArr === null ? <span className="text-amber">Unavailable</span> : formatMoney(row.renewalArr)}
+                    </td>
                     <td className="px-3 py-2 text-right">
                       {row.openPipelineArr === null ? "Unavailable" : formatMoney(row.openPipelineArr)}
                     </td>
@@ -428,6 +457,30 @@ function MetricCard({
       </div>
       <p className="mt-2 text-[11px] leading-4 text-dim">{note}</p>
     </div>
+  );
+}
+
+function PipelineSplitCard({
+  label,
+  split,
+  trust,
+  definition,
+}: {
+  label: string;
+  split: DashboardDTO["newBusinessPipeline"];
+  trust: DashboardDTO["pipelineTrust"];
+  definition: string;
+}) {
+  if (!split.available) return <BlockedCard label={label} summary={split.blocker.summary} />;
+  const unclassified =
+    split.unclassifiedOpen > 0 ? ` · ${split.unclassifiedOpen} open rows have no usable Type` : "";
+  return (
+    <MetricCard
+      label={label}
+      value={formatMoney(split.arr)}
+      trust={trust}
+      note={`${split.count} open · ${definition} · measure is arr${unclassified}`}
+    />
   );
 }
 
