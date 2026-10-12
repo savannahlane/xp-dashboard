@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #0e1319;
+  --surface: #161d26;
+  --surface2: #1c2530;
+  --raise: #232e3b;
+  --line: #2a3541;
+  --line-soft: #212b36;
+  --text: #e8edf3;
+  --muted: #8b9bac;
+  --dim: #5f6f81;
+  --brass: #c8a24a;
+  --brass-dim: #7a6428;
+  --teal: #46b3a3;
+  --rose: #d4686f;
+  --amber: #d8974a;
+  --focus: #7fa8d8;
+  --background: var(--ink);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --border: var(--line);
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-dim: var(--dim);
+  --color-brass: var(--brass);
+  --color-teal: var(--teal);
+  --color-rose: var(--rose);
+  --color-amber: var(--amber);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface2);
+  --color-ink: var(--ink);
+  --color-line: var(--line);
+  --color-raise: var(--raise);
+  --font-sans: var(--font-archivo), "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+body {
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
